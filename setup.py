@@ -4,8 +4,11 @@ setup(
     name="synapsefs",
     version="1.0.0",
     description="Permutation-Aware Cryptographic Version Control System & Virtual Filesystem for Neural Network Checkpoints",
-    author="IITK PClub SynapseFS Team",
+    author="Shashwat",
+    author_email="shashwat060207@gmail.com",
+    url="https://github.com/shashwat-cloud-gpu/SynapseFS",
     packages=find_packages(),
+
     python_requires=">=3.8",
     install_requires=[
         "numpy>=1.20.0",

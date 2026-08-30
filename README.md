@@ -135,3 +135,15 @@ docker run --rm --privileged --device /dev/fuse synapsefs
 | **Bipartite Matching** | **LSAP + Forward Propagation** | Global Joint Coordinate Descent | Full graph coordinate descent on 7B models exceeds memory and time limits. Layer-wise forward propagation aligns in seconds while staying strictly within consumer RAM. |
 | **Filesystem Layer** | **Virtual Byte Mapper + FUSE** | Loop Device / RAM Disk | RAM disks pre-materialize gigabytes of memory. Virtual Byte Mapping computes exact byte offsets on-the-fly with zero disk footprint and bounded LRU RAM usage. |
 | **Network Protocol** | **Content-Addressed Set Diffing** | `rsync` / `rclone` delegation | PS explicitly forbids delegation to external sync tools. Native CAS set difference guarantees zero redundant transfers and native resumability. |
+
+---
+
+## Author & Engineering Methodology
+
+* **Lead Architect & Developer:** [Shashwat](https://github.com/shashwat-cloud-gpu) (`shashwat060207@gmail.com`)
+* **AI Pair-Programming Assistant:** Developed in collaboration with Google DeepMind's **Antigravity AI Agent** for rapid algorithmic prototyping, mathematical verification, synthetic test generation, and out-of-core performance benchmarking.
+* **First-Principles Engineering:** Designed to move strictly beyond generic LLM boilerplate by engineering customized systems abstractions:
+  - **Bit-Exact IEEE-754 XOR Deltas:** Eliminating floating-point associativity errors to guarantee byte-for-byte SHA-256 reconstruction.
+  - **Forward Permutation Propagation:** Overcoming the classic multi-layer alignment dilemma by propagating discovered input-channel permutations sequentially.
+  - **Zero Pre-Materialization VFS:** Intercepting POSIX `read()`/`mmap()` calls via dynamic byte-range interval mapping with bounded LRU RAM caching.
+
