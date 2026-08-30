@@ -1,0 +1,8 @@
+{
+  "architectures": [
+    "MLP",
+    "CNN"
+  ],
+  "d_in": 128,
+  "d_hidden": 256
+}
