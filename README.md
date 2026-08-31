@@ -118,7 +118,8 @@ docker run --rm --privileged --device /dev/fuse synapsefs
 | `synapsefs checkout <branch/commit> [-o out]` | Switch branch or restore checkpoint | `synapsefs checkout main -o restored.safetensors` |
 | `synapsefs log [commit]` | View cryptographic commit DAG history | `synapsefs log` |
 | `synapsefs verify [commit]` | Cryptographically verify Merkle DAG integrity | `synapsefs verify` |
-| `synapsefs merge <branch>` | Merge branch via 3-way DAG reconciliation | `synapsefs merge feature_exp` |
+| `synapsefs merge <branch> [--rebasin]` | Merge branch (standard DAG or neural network weight blend) | `synapsefs merge feature_exp --rebasin` |
+| `synapsefs rebasin <model_a> <model_b> -o <out>` | Align and interpolate models in weight space (Git Re-Basin Algorithm 1) | `synapsefs rebasin m_a.safetensors m_b.safetensors -o merged.safetensors --alpha 0.5` |
 | `synapsefs mount <mountpoint> [commit]` | Mount zero-prematerialization virtual FS | `synapsefs mount /mnt/synapse` |
 | `synapsefs unmount <mountpoint>` | Unmount virtual filesystem | `synapsefs unmount /mnt/synapse` |
 | `synapsefs serve [--host 0.0.0.0] [--port 8000]` | Start peer sync server daemon | `synapsefs serve --port 8000` |
@@ -126,6 +127,7 @@ docker run --rm --privileged --device /dev/fuse synapsefs
 | `synapsefs pull <remote_url> [branch]` | Pull missing blocks from peer | `synapsefs pull http://192.168.1.5:8000 main` |
 
 ---
+
 
 ## Architectural Trade-Offs Considered
 

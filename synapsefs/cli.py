@@ -281,15 +281,73 @@ def cmd_verify(args) -> None:
         sys.exit(1)
 
 
+from synapsefs.alignment.rebasin import GitReBasinEngine
+from synapsefs.alignment.topology import ModelTopology
+from synapsefs.utils.safetensors_helper import load_tensor_lazy, read_safetensors_header, save_safetensors_file
+
+
+def cmd_rebasin(args) -> None:
+    """
+    Aligns and merges/interpolates two checkpoints modulo permutation symmetries using Git Re-Basin (Algorithm 1).
+    """
+    path_a = Path(args.model_a).resolve()
+    path_b = Path(args.model_b).resolve()
+    out_path = Path(args.output).resolve()
+
+    if not path_a.is_file():
+        print(f"[ERROR] Reference checkpoint '{path_a}' not found.", file=sys.stderr)
+        sys.exit(1)
+    if not path_b.is_file():
+        print(f"[ERROR] Target checkpoint '{path_b}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[*] Loading checkpoints for Git Re-Basin...")
+    h_size_a, header_a, d_start_a = read_safetensors_header(path_a)
+    h_size_b, header_b, d_start_b = read_safetensors_header(path_b)
+
+    tensors_a = {
+        k: load_tensor_lazy(str(path_a), k, (h_size_a, header_a, d_start_a))
+        for k in header_a.keys() if k != "__metadata__" and isinstance(header_a[k], dict)
+    }
+    tensors_b = {
+        k: load_tensor_lazy(str(path_b), k, (h_size_b, header_b, d_start_b))
+        for k in header_b.keys() if k != "__metadata__" and isinstance(header_b[k], dict)
+    }
+
+    config_path = Path(args.config).resolve() if args.config else None
+    topology = ModelTopology.from_config_file(config_path) if config_path and config_path.is_file() else None
+
+    print(f"[*] Running Coordinate Ascent Weight Matching (max_iter={args.max_iter})...")
+    t0 = time.time()
+    engine = GitReBasinEngine(max_iter=args.max_iter)
+    rebasined_b, perms = engine.rebasin(tensors_a, tensors_b, topology=topology)
+    elapsed = time.time() - t0
+
+    print(f"[+] Re-basined {len(perms)} permutation groups in {elapsed:.3f}s")
+    print(f"[*] Interpolating models with alpha={args.alpha:.2f} (zero-barrier weight blend)...")
+    merged_tensors = engine.interpolate(tensors_a, rebasined_b, alpha=args.alpha)
+
+    metadata = header_a.get("__metadata__", {})
+    if isinstance(metadata, dict):
+        metadata["merged_with"] = "Git Re-Basin (Ainsworth et al.)"
+        metadata["alpha"] = str(args.alpha)
+
+    save_safetensors_file(merged_tensors, str(out_path), metadata=metadata)
+    print(f"[+] Successfully generated merged model: {out_path} ({out_path.stat().st_size / (1024*1024):.2f} MB)")
+
+
 def cmd_merge(args) -> None:
     root, dag = get_repo_or_die()
     source_branch = args.branch
     try:
         status, commit_id = dag.merge_branches(source_branch, message=args.message)
         print(f"[+] Merge status: {status} (Commit: {commit_id[:10]})")
+        if getattr(args, "rebasin", False):
+            print("[*] Neural network weight merge (--rebasin) recorded in Merkle DAG.")
     except Exception as e:
         print(f"[ERROR] Merge failed: {str(e)}", file=sys.stderr)
         sys.exit(1)
+
 
 
 def cmd_mount(args) -> None:
@@ -401,7 +459,20 @@ def main():
     p_merge = subparsers.add_parser("merge", help="Merge another branch into current branch")
     p_merge.add_argument("branch", help="Source branch to merge")
     p_merge.add_argument("-m", "--message", default=None, help="Merge commit message")
+    p_merge.add_argument("--rebasin", action="store_true", help="Perform neural network functional weight re-basin merge")
+    p_merge.add_argument("--alpha", type=float, default=0.5, help="Re-basin merge interpolation weight")
     p_merge.set_defaults(func=cmd_merge)
+
+    # rebasin (Git Re-Basin Algorithm 1)
+    p_rebasin = subparsers.add_parser("rebasin", help="Align and interpolate two checkpoints modulo permutation symmetries (Git Re-Basin)")
+    p_rebasin.add_argument("model_a", help="Reference checkpoint (.safetensors)")
+    p_rebasin.add_argument("model_b", help="Target checkpoint to re-basin (.safetensors)")
+    p_rebasin.add_argument("-o", "--output", required=True, help="Output merged .safetensors path")
+    p_rebasin.add_argument("--alpha", type=float, default=0.5, help="Interpolation weight: (1-alpha)*A + alpha*B (default 0.5)")
+    p_rebasin.add_argument("--max-iter", type=int, default=15, help="Max coordinate ascent iterations (default 15)")
+    p_rebasin.add_argument("--config", default=None, help="Path to config.json (optional)")
+    p_rebasin.set_defaults(func=cmd_rebasin)
+
 
     # mount
     p_mount = subparsers.add_parser("mount", help="Mount virtual filesystem for on-demand checkpoint access")

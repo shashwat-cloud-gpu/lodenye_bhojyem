@@ -116,19 +116,27 @@ class ModelTopology:
                     grp.vector_tensors.append(bias_name)
 
                 # Check for adjacent BatchNorm / LayerNorm
-                # Standard patterns: bn1, norm1, layer_norm
-                for norm_key in [f"{prefix}_bn", f"{prefix}.bn", f"{prefix}_norm"]:
+                # Standard patterns: conv1 -> bn1, layer1.0.conv1 -> layer1.0.bn1, etc.
+                layer_num = re.findall(r"\d+", prefix)
+                layer_idx_str = layer_num[-1] if layer_num else str(i + 1)
+                
+                possible_norm_prefixes = [
+                    f"{prefix}_bn", f"{prefix}.bn", f"{prefix}_norm",
+                    f"bn{layer_idx_str}", f"norm{layer_idx_str}", f"bn_{layer_idx_str}",
+                ]
+                for n_pre in possible_norm_prefixes:
                     for suffix in [".weight", ".bias", ".running_mean", ".running_var"]:
-                        norm_tensor = norm_key + suffix
+                        norm_tensor = n_pre + suffix
                         if norm_tensor in tensor_shapes and tensor_shapes[norm_tensor] == [curr_out_dim]:
-                            grp.vector_tensors.append(norm_tensor)
+                            if norm_tensor not in grp.vector_tensors:
+                                grp.vector_tensors.append(norm_tensor)
 
-                # Also search for any 1D tensors matching curr_out_dim in the immediate neighborhood
-                layer_base = prefix.split(".")[0]
+                # Also check any 1D tensor with shape [curr_out_dim] that belongs to this stage
                 for tname, shape in tensor_shapes.items():
-                    if tname.startswith(layer_base) and shape == [curr_out_dim]:
-                        if tname not in grp.vector_tensors and tname != bias_name and not tname.endswith(".weight"):
+                    if shape == [curr_out_dim] and not tname.endswith(".weight"):
+                        if (layer_idx_str in tname or prefix in tname) and tname not in grp.vector_tensors and tname != bias_name:
                             grp.vector_tensors.append(tname)
+
 
                 groups.append(grp)
 
